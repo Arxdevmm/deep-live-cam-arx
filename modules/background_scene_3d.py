@@ -36,7 +36,19 @@ class BackgroundScene3DEngine:
                 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
             from rembg import new_session, remove
 
-            self._session = new_session("u2netp")
+            try:
+                import onnxruntime as ort
+
+                available = set(ort.get_available_providers())
+                providers = (
+                    ["CUDAExecutionProvider"]
+                    if "CUDAExecutionProvider" in available
+                    else []
+                )
+                providers.append("CPUExecutionProvider")
+                self._session = new_session("u2netp", providers=providers)
+            except Exception:
+                self._session = new_session("u2netp")
             self._remove = remove
             import pyrender
             import trimesh
