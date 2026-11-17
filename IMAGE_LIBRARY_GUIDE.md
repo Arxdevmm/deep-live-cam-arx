@@ -25,3 +25,9 @@ The `image_library` folder now includes six fictional, AI-generated visual test 
 - `backgrounds/Sample_Tropical_Beach.jpg` — tropical beach scene
 
 These are synthetic demonstration images, not photographs of identified real people. They are included for local UI and image-processing tests. Face-swap testing should only use faces of fictional people or real people who have given informed consent. Clearly disclose and label synthetic or altered media when sharing it.
+
+## Included room background pack
+
+The app also ships with an additional 11-room image pack in `image_library/backgrounds/` for 3D background use. Each image has a matching depth preset stored in `image_library/backgrounds/background_pack.json` so that selecting a room automatically applies a recommended parallax, perspective, and blur setting.
+
+This pack is intended for virtual room / studio / interior styles and is suited to the live 2.5D background pipeline already built into the app.

@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from modules.background_3d import Background3DEngine
+from modules.background_3d import Background3DEngine, get_background_pack_profile
 
 
 class FakeDepthSession:
@@ -78,6 +78,18 @@ class Background3DWarpTests(unittest.TestCase):
         self.assertEqual(engine._depth_session.input_shape[3] % 14, 0)
         self.assertEqual(depth.shape, background.shape[:2])
         self.assertTrue(np.isfinite(depth).all())
+
+    def test_background_pack_profile_reads_room_pack_metadata(self):
+        room_profile = get_background_pack_profile(
+            "/fake/path/IMG_20261117_185346_305.jpg"
+        )
+        self.assertEqual(room_profile["label"], "Modern open-plan living room")
+        self.assertGreater(room_profile["parallax_strength"], 0.5)
+        self.assertGreater(room_profile["perspective_strength"], 0.3)
+
+        fallback = get_background_pack_profile("/fake/path/custom_scene.jpg")
+        self.assertIn("parallax_strength", fallback)
+        self.assertEqual(fallback["blur_strength"], 0.05)
 
 
 if __name__ == "__main__":

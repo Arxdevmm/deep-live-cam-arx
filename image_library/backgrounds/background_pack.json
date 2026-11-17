@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "name": "Room background pack",
+  "defaults": {
+    "parallax_strength": 0.35,
+    "perspective_strength": 0.25,
+    "blur_strength": 0.05,
+    "depth_layers": {
+      "background": 0.9,
+      "midground": 0.55,
+      "foreground": 0.25
+    }
+  },
+  "backgrounds": {
+    "IMG_20261117_185346_305.jpg": {
+      "label": "Modern open-plan living room",
+      "parallax_strength": 0.72,
+      "perspective_strength": 0.52,
+      "blur_strength": 0.06,
+      "depth_layers": {
+        "background": 0.9,
+        "midground": 0.55,
+        "foreground": 0.25
+      }
+    },
+    "IMG_20261117_185346_437.jpg": {
+      "label": "Warm bedroom with depth",
+      "parallax_strength": 0.6,
+      "perspective_strength": 0.38,
+      "blur_strength": 0.05,
+      "depth_layers": {
+        "background": 0.85,
+        "midground": 0.52,
+        "foreground": 0.2
+      }
+    },
+    "IMG_20261117_185346_552.jpg": {
+      "label": "Minimal bedroom scene",
+      "parallax_strength": 0.63,
+      "perspective_strength": 0.45,
+      "blur_strength": 0.07,
+      "depth_layers": {
+        "background": 0.88,
+        "midground": 0.54,
+        "foreground": 0.22
+      }
+    },
+    "IMG_20261117_185346_913.jpg": {
+      "label": "Soft studio bedroom",
+      "parallax_strength": 0.58,
+      "perspective_strength": 0.4,
+      "blur_strength": 0.04,
+      "depth_layers": {
+        "background": 0.82,
+        "midground": 0.5,
+        "foreground": 0.18
+      }
+    },
+    "IMG_20261117_185347_025.jpg": {
+      "label": "Contemporary room interior",
+      "parallax_strength": 0.66,
+      "perspective_strength": 0.46,
+      "blur_strength": 0.07,
+      "depth_layers": {
+        "background": 0.9,
+        "midground": 0.56,
+        "foreground": 0.24
+      }
+    },
+    "IMG_20261117_185347_128.jpg": {
+      "label": "Neutral apartment room",
+      "parallax_strength": 0.62,
+      "perspective_strength": 0.42,
+      "blur_strength": 0.05,
+      "depth_layers": {
+        "background": 0.86,
+        "midground": 0.53,
+        "foreground": 0.2
+      }
+    },
+    "IMG_20261117_185347_145.jpg": {
+      "label": "Relaxed lounge room",
+      "parallax_strength": 0.56,
+      "perspective_strength": 0.38,
+      "blur_strength": 0.04,
+      "depth_layers": {
+        "background": 0.8,
+        "midground": 0.48,
+        "foreground": 0.17
+      }
+    },
+    "IMG_20261117_185347_189.jpg": {
+      "label": "Hotel-style bedroom",
+      "parallax_strength": 0.58,
+      "perspective_strength": 0.41,
+      "blur_strength": 0.05,
+      "depth_layers": {
+        "background": 0.84,
+        "midground": 0.5,
+        "foreground": 0.18
+      }
+    },
+    "IMG_20261117_190036_226.jpg": {
+      "label": "Window-lit bedroom portrait",
+      "parallax_strength": 0.64,
+      "perspective_strength": 0.43,
+      "blur_strength": 0.05,
+      "depth_layers": {
+        "background": 0.88,
+        "midground": 0.53,
+        "foreground": 0.21
+      }
+    },
+    "IMG_20261117_190036_705.jpg": {
+      "label": "Luxury suite with studio framing",
+      "parallax_strength": 0.66,
+      "perspective_strength": 0.47,
+      "blur_strength": 0.06,
+      "depth_layers": {
+        "background": 0.9,
+        "midground": 0.56,
+        "foreground": 0.24
+      }
+    },
+    "IMG_20261117_190036_969.jpg": {
+      "label": "Wide premium apartment room",
+      "parallax_strength": 0.61,
+      "perspective_strength": 0.44,
+      "blur_strength": 0.06,
+      "depth_layers": {
+        "background": 0.87,
+        "midground": 0.54,
+        "foreground": 0.22
+      }
+    }
+  }
+}

@@ -6,12 +6,66 @@ single image. This is not full 3D scene reconstruction.
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
-from typing import Optional
+from typing import Any, Optional
 
 import cv2
 import numpy as np
+
+_DEFAULT_BACKGROUND_PACK = {
+    "parallax_strength": 0.35,
+    "perspective_strength": 0.25,
+    "blur_strength": 0.05,
+    "depth_layers": {
+        "background": 0.9,
+        "midground": 0.55,
+        "foreground": 0.25,
+    },
+}
+
+
+def _background_pack_manifest_path() -> str:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(root, "image_library", "backgrounds", "background_pack.json")
+
+
+def load_background_pack_manifest() -> dict[str, dict[str, Any]]:
+    manifest_path = _background_pack_manifest_path()
+    if not os.path.isfile(manifest_path):
+        return {}
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    backgrounds = payload.get("backgrounds", {})
+    if not isinstance(backgrounds, dict):
+        return {}
+    return {
+        name: values
+        for name, values in backgrounds.items()
+        if isinstance(values, dict)
+    }
+
+
+def get_background_pack_profile(background_path: Optional[str]) -> dict[str, Any]:
+    profile = dict(_DEFAULT_BACKGROUND_PACK)
+    if not background_path:
+        return profile
+    manifest = load_background_pack_manifest()
+    selected_name = os.path.basename(background_path)
+    entry = manifest.get(selected_name, {})
+    if isinstance(entry, dict):
+        profile.update({k: v for k, v in entry.items() if k != "depth_layers"})
+        depth_layers = entry.get("depth_layers", {})
+        if isinstance(depth_layers, dict):
+            profile["depth_layers"] = {
+                **profile["depth_layers"],
+                **depth_layers,
+            }
+    return profile
 
 
 class Background3DEngine:

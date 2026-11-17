@@ -939,14 +939,28 @@ class MainWindow(QMainWindow):
         if not is_image(path):
             update_status("The selected background image is not supported.")
             return
+        from modules.background_3d import get_background_pack_profile
+
+        preset = get_background_pack_profile(path)
         modules.globals.background_scene_path = None
         modules.globals.background_image_path = path
+        modules.globals.background_parallax_strength = float(preset.get("parallax_strength", modules.globals.background_parallax_strength))
+        modules.globals.background_perspective_strength = float(preset.get("perspective_strength", modules.globals.background_perspective_strength))
+        modules.globals.background_blur = float(preset.get("blur_strength", modules.globals.background_blur))
         self.lbl_background_path.setText(os.path.basename(path))
         self.lbl_background_path.setToolTip(path)
         self.lbl_background_scene_path.setText(_("No 3D scene selected"))
         self.lbl_background_scene_path.setToolTip("")
+        if getattr(self, "s_bg_parallax", None) is not None:
+            self.s_bg_parallax.setValue(int(modules.globals.background_parallax_strength * 100))
+        if getattr(self, "s_bg_perspective", None) is not None:
+            self.s_bg_perspective.setValue(int(modules.globals.background_perspective_strength * 100))
+        if getattr(self, "s_bg_blur", None) is not None:
+            self.s_bg_blur.setValue(int(modules.globals.background_blur * 100))
         save_switch_states()
-        update_status("Background image selected.")
+        update_status(
+            f"Background image selected. Depth preset: {preset.get('label', 'room pack')}."
+        )
 
     def _choose_background_image(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
