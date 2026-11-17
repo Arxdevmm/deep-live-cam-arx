@@ -11,17 +11,16 @@ import platform
 import signal
 import shutil
 import argparse
+
 try:
-    import torch
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-import onnxruntime
-try:
-    import tensorflow
-    HAS_TENSORFLOW = True
-except ImportError:
-    HAS_TENSORFLOW = False
+    import onnxruntime
+except ImportError:  # pragma: no cover - handled during bootstrap, not import-time
+    onnxruntime = None
+
+torch = None
+tensorflow = None
+HAS_TORCH = False
+HAS_TENSORFLOW = False
 
 import modules.globals
 import modules.metadata
@@ -29,12 +28,32 @@ import modules.ui as ui
 from modules.processors.frame.core import get_frame_processors_modules, process_video_in_memory
 from modules.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
 
-if HAS_TORCH and 'ROCMExecutionProvider' in modules.globals.execution_providers:
-    del torch
 
-warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
-if HAS_TORCH:
-    warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
+def bootstrap_runtime() -> None:
+    """Import optional ML dependencies only when the app is actually starting."""
+    global torch, tensorflow, HAS_TORCH, HAS_TENSORFLOW
+
+    if torch is None:
+        try:
+            import torch as _torch
+            torch = _torch
+            HAS_TORCH = True
+        except ImportError:
+            torch = None
+            HAS_TORCH = False
+
+    if tensorflow is None:
+        try:
+            import tensorflow as _tensorflow
+            tensorflow = _tensorflow
+            HAS_TENSORFLOW = True
+        except ImportError:
+            tensorflow = None
+            HAS_TENSORFLOW = False
+
+    warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
+    if HAS_TORCH:
+        warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
 
 
 def parse_args() -> None:
@@ -70,27 +89,29 @@ def parse_args() -> None:
 
     args = program.parse_args()
 
-    modules.globals.source_path = args.source_path
-    modules.globals.target_path = args.target_path
-    modules.globals.output_path = normalize_output_path(modules.globals.source_path, modules.globals.target_path, args.output_path)
-    modules.globals.frame_processors = args.frame_processor
-    modules.globals.headless = args.source_path or args.target_path or args.output_path
-    modules.globals.keep_fps = args.keep_fps
-    modules.globals.keep_audio = args.keep_audio
-    modules.globals.keep_frames = args.keep_frames
-    modules.globals.many_faces = args.many_faces
-    modules.globals.mouth_mask = args.mouth_mask
-    modules.globals.nsfw_filter = args.nsfw_filter
-    modules.globals.map_faces = args.map_faces
-    modules.globals.video_encoder = args.video_encoder
-    modules.globals.video_quality = args.video_quality
-    modules.globals.live_mirror = args.live_mirror
-    modules.globals.live_resizable = args.live_resizable
-    modules.globals.max_memory = args.max_memory
-    modules.globals.execution_providers = decode_execution_providers(args.execution_provider)
-    modules.globals.execution_threads = args.execution_threads
-    modules.globals.det_size = args.det_size
-    modules.globals.lang = args.lang
+    config = modules.globals.RuntimeConfig()
+    config.source_path = args.source_path
+    config.target_path = args.target_path
+    config.output_path = normalize_output_path(config.source_path, config.target_path, args.output_path)
+    config.frame_processors = args.frame_processor
+    config.headless = args.source_path or args.target_path or args.output_path
+    config.keep_fps = args.keep_fps
+    config.keep_audio = args.keep_audio
+    config.keep_frames = args.keep_frames
+    config.many_faces = args.many_faces
+    config.mouth_mask = args.mouth_mask
+    config.nsfw_filter = args.nsfw_filter
+    config.map_faces = args.map_faces
+    config.video_encoder = args.video_encoder
+    config.video_quality = args.video_quality
+    config.live_mirror = args.live_mirror
+    config.live_resizable = args.live_resizable
+    config.max_memory = args.max_memory
+    config.execution_providers = decode_execution_providers(args.execution_provider)
+    config.execution_threads = args.execution_threads
+    config.det_size = args.det_size
+    config.lang = args.lang
+    modules.globals.apply_runtime_config(config)
 
     # The argparse default (None) avoids evaluating suggest_execution_threads()
     # before providers are decoded, and deprecated-arg overrides above may
@@ -129,7 +150,10 @@ def encode_execution_providers(execution_providers: List[str]) -> List[str]:
 
 
 def decode_execution_providers(execution_providers: List[str]) -> List[str]:
-    return [provider for provider, encoded_execution_provider in zip(onnxruntime.get_available_providers(), encode_execution_providers(onnxruntime.get_available_providers()))
+    if onnxruntime is None:
+        return []
+    available = onnxruntime.get_available_providers()
+    return [provider for provider, encoded_execution_provider in zip(available, encode_execution_providers(available))
             if any(execution_provider in encoded_execution_provider for execution_provider in execution_providers)]
 
 
@@ -141,6 +165,8 @@ def suggest_max_memory() -> int:
 
 def suggest_default_execution_provider() -> str:
     """Pick the best available provider: cuda > rocm > coreml > openvino > dml > cpu."""
+    if onnxruntime is None:
+        return 'cpu'
     available = encode_execution_providers(onnxruntime.get_available_providers())
     for pref in ('cuda', 'rocm', 'coreml', 'openvino', 'dml'):
         if pref in available:
@@ -149,6 +175,8 @@ def suggest_default_execution_provider() -> str:
 
 
 def suggest_execution_providers() -> List[str]:
+    if onnxruntime is None:
+        return ['cpu']
     return encode_execution_providers(onnxruntime.get_available_providers())
 
 
@@ -173,8 +201,9 @@ def suggest_execution_threads() -> int:
 
 
 def limit_resources() -> None:
+    bootstrap_runtime()
     # prevent tensorflow memory leak
-    if HAS_TENSORFLOW:
+    if HAS_TENSORFLOW and tensorflow is not None:
         gpus = tensorflow.config.experimental.list_physical_devices('GPU')
         for gpu in gpus:
             tensorflow.config.experimental.set_memory_growth(gpu, True)
@@ -195,7 +224,8 @@ def limit_resources() -> None:
 
 
 def release_resources() -> None:
-    if 'CUDAExecutionProvider' in modules.globals.execution_providers and HAS_TORCH:
+    bootstrap_runtime()
+    if 'CUDAExecutionProvider' in modules.globals.execution_providers and HAS_TORCH and torch is not None:
         torch.cuda.empty_cache()
 
 
@@ -340,6 +370,7 @@ def destroy(to_quit=True) -> None:
 
 
 def run() -> None:
+    bootstrap_runtime()
     parse_args()
     if not pre_check():
         return

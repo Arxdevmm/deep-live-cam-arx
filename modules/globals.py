@@ -1,7 +1,10 @@
 # --- START OF FILE globals.py ---
 
 import os
-from typing import List, Dict, Any
+import sys
+import threading
+from dataclasses import dataclass, field
+from typing import Any, Dict, List
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKFLOW_DIR = os.path.join(ROOT_DIR, "workflow")
@@ -14,92 +17,137 @@ WORKFLOW_DIR = os.path.join(ROOT_DIR, "workflow")
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 VIDEO_EXTENSIONS = (".mp4", ".mkv")
 
-# Face Mapping Data
-source_target_map: List[Dict[str, Any]] = [] # Stores detailed map for image/video processing
-simple_map: Dict[str, Any] = {}             # Stores simplified map (embeddings/faces) for live/simple mode
 
-# Paths
-source_path: str | None = None
-target_path: str | None = None
-output_path: str | None = None
+@dataclass
+class RuntimeConfig:
+    """Typed runtime state for app startup and live-processing configuration."""
 
-# Processing Options
-frame_processors: List[str] = []
-keep_fps: bool = True
-keep_audio: bool = True
-keep_frames: bool = False
-many_faces: bool = False         # Process all detected faces with default source
-map_faces: bool = False          # Use source_target_map or simple_map for specific swaps
-poisson_blend: bool = False      # Enable Poisson Blending for smoother face swaps
-color_correction: bool = False   # Enable color correction (implementation specific)
-nsfw_filter: bool = False
+    source_target_map: List[Dict[str, Any]] = field(default_factory=list)
+    simple_map: Dict[str, Any] = field(default_factory=dict)
+    source_path: str | None = None
+    target_path: str | None = None
+    output_path: str | None = None
+    frame_processors: List[str] = field(default_factory=list)
+    keep_fps: bool = True
+    keep_audio: bool = True
+    keep_frames: bool = False
+    many_faces: bool = False
+    map_faces: bool = False
+    poisson_blend: bool = False
+    color_correction: bool = False
+    nsfw_filter: bool = False
+    video_encoder: str | None = None
+    video_quality: int | None = None
+    live_mirror: bool = False
+    live_resizable: bool = True
+    camera_input_combobox: Any | None = None
+    webcam_preview_running: bool = False
+    show_fps: bool = False
+    live_async_swap: bool = True
+    max_memory: int | None = None
+    execution_providers: List[str] = field(default_factory=list)
+    execution_threads: int | None = None
+    headless: bool | None = None
+    log_level: str = "error"
+    lang: str = "en"
+    fp_ui: Dict[str, bool] = field(
+        default_factory=lambda: {
+            "face_enhancer": False,
+            "face_enhancer_gpen256": False,
+            "face_enhancer_gpen512": False,
+        }
+    )
+    face_swapper_enabled: bool = True
+    opacity: float = 1.0
+    sharpness: float = 0.0
+    mouth_mask: bool = False
+    show_mouth_mask_box: bool = False
+    mask_feather_ratio: int = 12
+    mask_down_size: float = 0.1
+    mask_size: float = 1.0
+    mouth_mask_size: float = 0.0
+    enable_interpolation: bool = True
+    interpolation_weight: float = 0
+    DEFAULT_DET_SIZE: int = 640
+    det_size: int = 320
+    capture_resolution: tuple = (1280, 720)
+    dml_lock: threading.Lock = field(default_factory=threading.Lock)
+    enable_3d_background: bool = True
+    background_image_path: str | None = None
+    background_parallax_strength: float = 0.35
+    background_perspective_strength: float = 0.25
+    background_blur: float = 0.05
 
-# Video Output Options
-video_encoder: str | None = None
-video_quality: int | None = None # Typically a CRF value or bitrate
 
-# Live Mode Options
-live_mirror: bool = False
-live_resizable: bool = True
-camera_input_combobox: Any | None = None # Placeholder for UI element if needed
-webcam_preview_running: bool = False
-show_fps: bool = False
-live_async_swap: bool = True  # keep webcam preview responsive on the RTX 4060    # Run the swap model off the live loop (see AsyncLiveSwapper)
+runtime_config = RuntimeConfig()
 
-# System Configuration
-max_memory: int | None = None        # Memory limit in GB? (Needs clarification)
-execution_providers: List[str] = []  # e.g., ['CUDAExecutionProvider', 'CPUExecutionProvider']
-execution_threads: int | None = None # Number of threads for CPU execution
-headless: bool | None = None         # Run without UI?
-log_level: str = "error"             # Logging level (e.g., 'debug', 'info', 'warning', 'error')
 
-# Face Processor UI Toggles (Example)
-fp_ui: Dict[str, bool] = {"face_enhancer": False, "face_enhancer_gpen256": False, "face_enhancer_gpen512": False}
+def apply_runtime_config(config: RuntimeConfig | None = None) -> RuntimeConfig:
+    """Synchronize the typed runtime config with legacy module-level globals."""
+    if config is None:
+        config = runtime_config
 
-# Face Swapper Specific Options
-face_swapper_enabled: bool = True # General toggle for the swapper processor
-opacity: float = 1.0              # Blend factor for the swapped face (0.0-1.0)
-sharpness: float = 0.0            # Sharpness enhancement for swapped face (0.0-1.0+)
+    for key, value in config.__dict__.items():
+        setattr(runtime_config, key, value)
+        setattr(sys.modules[__name__], key, value)
+    return config
 
-# Mouth Mask Options
-mouth_mask: bool = False           # Enable mouth area masking/pasting
-show_mouth_mask_box: bool = False  # Visualize the mouth mask area (for debugging)
-mask_feather_ratio: int = 12       # Denominator for feathering calculation (higher = smaller feather)
-mask_down_size: float = 0.1        # Expansion factor for lower lip mask (relative)
-mask_size: float = 1.0             # Expansion factor for upper lip mask (relative)
-mouth_mask_size: float = 0.0       # Mouth mask size (0-100; 0=off, 100=mouth to chin)
 
-# --- START: Added for Frame Interpolation ---
-enable_interpolation: bool = True # Toggle temporal smoothing
-interpolation_weight: float = 0  # Blend weight for current frame (0.0-1.0). Lower=smoother.
-# --- END: Added for Frame Interpolation ---
+# Mirror legacy globals for compatibility while the app is being migrated.
+# These remain the same names existing modules use today.
+source_target_map: List[Dict[str, Any]] = runtime_config.source_target_map
+simple_map: Dict[str, Any] = runtime_config.simple_map
+source_path: str | None = runtime_config.source_path
+target_path: str | None = runtime_config.target_path
+output_path: str | None = runtime_config.output_path
+frame_processors: List[str] = runtime_config.frame_processors
+keep_fps: bool = runtime_config.keep_fps
+keep_audio: bool = runtime_config.keep_audio
+keep_frames: bool = runtime_config.keep_frames
+many_faces: bool = runtime_config.many_faces
+map_faces: bool = runtime_config.map_faces
+poisson_blend: bool = runtime_config.poisson_blend
+color_correction: bool = runtime_config.color_correction
+nsfw_filter: bool = runtime_config.nsfw_filter
+video_encoder: str | None = runtime_config.video_encoder
+video_quality: int | None = runtime_config.video_quality
+live_mirror: bool = runtime_config.live_mirror
+live_resizable: bool = runtime_config.live_resizable
+camera_input_combobox: Any | None = runtime_config.camera_input_combobox
+webcam_preview_running: bool = runtime_config.webcam_preview_running
+show_fps: bool = runtime_config.show_fps
+live_async_swap: bool = runtime_config.live_async_swap
+max_memory: int | None = runtime_config.max_memory
+execution_providers: List[str] = runtime_config.execution_providers
+execution_threads: int | None = runtime_config.execution_threads
+headless: bool | None = runtime_config.headless
+log_level: str = runtime_config.log_level
+lang: str = runtime_config.lang
+fp_ui: Dict[str, bool] = runtime_config.fp_ui
+face_swapper_enabled: bool = runtime_config.face_swapper_enabled
+opacity: float = runtime_config.opacity
+sharpness: float = runtime_config.sharpness
+mouth_mask: bool = runtime_config.mouth_mask
+show_mouth_mask_box: bool = runtime_config.show_mouth_mask_box
+mask_feather_ratio: int = runtime_config.mask_feather_ratio
+mask_down_size: float = runtime_config.mask_down_size
+mask_size: float = runtime_config.mask_size
+mouth_mask_size: float = runtime_config.mouth_mask_size
+enable_interpolation: bool = runtime_config.enable_interpolation
+interpolation_weight: float = runtime_config.interpolation_weight
+DEFAULT_DET_SIZE: int = runtime_config.DEFAULT_DET_SIZE
+det_size: int = runtime_config.det_size
+capture_resolution: tuple = runtime_config.capture_resolution
+dml_lock = runtime_config.dml_lock
+enable_3d_background: bool = runtime_config.enable_3d_background
+background_image_path: str | None = runtime_config.background_image_path
+background_parallax_strength: float = runtime_config.background_parallax_strength
+background_perspective_strength: float = runtime_config.background_perspective_strength
+background_blur: float = runtime_config.background_blur
 
-# Face detection resolution (160, 320, or 640).
-# Lower = faster detection, fewer FLOPs, less accurate at distance.
-# Changes require face analyser re-init (handled in UI by clearing FACE_ANALYSER).
-# DEFAULT_DET_SIZE is the single source of truth for the default — UI,
-# face_analyser, and CLI all reference it so they can't drift apart.
-DEFAULT_DET_SIZE: int = 640
-det_size: int = 320  # balanced live detection size; select 640 for more distant faces
-
-# Webcam capture resolution requested via cv2.CAP_PROP_FRAME_WIDTH/HEIGHT.
-# Camera may negotiate to its nearest supported size — actual size is
-# printed in console as "[VideoCapturer] WxH @ FPS".
-# Default 640x480: native on virtually every webcam, fastest reliable mode
-# on USB 2.0. Higher 16:9 tiers (540/720/1080) selectable in UI.
-capture_resolution: tuple = (1280, 720)  # RTX 4060 balanced preset default
+# Keep the old module namespace values in sync with the config object after any
+# direct assignment. This preserves current call sites while giving us a strong
+# typed config source to move towards.
+apply_runtime_config(runtime_config)
 
 # --- END OF FILE globals.py ---
-
-import threading
-dml_lock = threading.Lock()
-
-
-# 3D virtual background (optional live-preview feature)
-enable_3d_background: bool = True
-background_image_path: str | None = None
-# Balanced RTX 4060 starting values. Background replacement remains inactive
-# until the user chooses an image.
-background_parallax_strength: float = 0.35
-background_perspective_strength: float = 0.25
-background_blur: float = 0.05
