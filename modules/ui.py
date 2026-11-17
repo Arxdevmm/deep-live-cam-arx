@@ -341,6 +341,7 @@ def save_switch_states():
         "det_size": modules.globals.det_size,
         "enable_3d_background": modules.globals.enable_3d_background,
         "background_image_path": modules.globals.background_image_path,
+        "background_scene_path": modules.globals.background_scene_path,
         "background_parallax_strength": modules.globals.background_parallax_strength,
         "background_perspective_strength": modules.globals.background_perspective_strength,
         "background_blur": modules.globals.background_blur,
@@ -387,8 +388,25 @@ def load_switch_states():
         if state.get("det_size") in (160, 320, 640):
             modules.globals.det_size = int(state["det_size"])
         modules.globals.enable_3d_background = bool(state.get("enable_3d_background", False))
+        scene_path = state.get("background_scene_path")
+        if (
+            isinstance(scene_path, str)
+            and os.path.isfile(scene_path)
+            and os.path.splitext(scene_path)[1].lower() in (".glb", ".gltf")
+        ):
+            modules.globals.background_scene_path = scene_path
+        else:
+            modules.globals.background_scene_path = None
         bg_path = state.get("background_image_path")
-        modules.globals.background_image_path = bg_path if isinstance(bg_path, str) and os.path.isfile(bg_path) else None
+        modules.globals.background_image_path = (
+            bg_path
+            if (
+                modules.globals.background_scene_path is None
+                and isinstance(bg_path, str)
+                and os.path.isfile(bg_path)
+            )
+            else None
+        )
         modules.globals.background_parallax_strength = float(state.get("background_parallax_strength", 0.35))
         modules.globals.background_perspective_strength = float(state.get("background_perspective_strength", 0.25))
         modules.globals.background_blur = float(state.get("background_blur", 0.0))
@@ -887,7 +905,7 @@ class MainWindow(QMainWindow):
         self.s_bg_perspective.setValue(25)
         self.s_bg_blur.setValue(5)
         save_switch_states()
-        update_status(_("RTX 4060 balanced preset applied. Choose a background image to enable replacement."))
+        update_status(_("RTX 4060 balanced preset applied. Choose a background image or GLB/glTF scene to enable replacement."))
 
     def _library_dir(self, kind: str) -> str:
         from modules.paths import ROOT_DIR
@@ -921,9 +939,12 @@ class MainWindow(QMainWindow):
         if not is_image(path):
             update_status("The selected background image is not supported.")
             return
+        modules.globals.background_scene_path = None
         modules.globals.background_image_path = path
         self.lbl_background_path.setText(os.path.basename(path))
         self.lbl_background_path.setToolTip(path)
+        self.lbl_background_scene_path.setText(_("No 3D scene selected"))
+        self.lbl_background_scene_path.setToolTip("")
         save_switch_states()
         update_status("Background image selected.")
 
@@ -934,6 +955,32 @@ class MainWindow(QMainWindow):
         )
         if path:
             self._set_background_image(path)
+
+    def _choose_background_scene(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self,
+            _("Choose 3D background scene"),
+            "",
+            _("3D scenes (*.glb *.gltf)"),
+        )
+        if path:
+            self._set_background_scene(path)
+
+    def _set_background_scene(self, path: str) -> None:
+        if (
+            not os.path.isfile(path)
+            or os.path.splitext(path)[1].lower() not in (".glb", ".gltf")
+        ):
+            update_status("Select a valid .glb or .gltf 3D scene.")
+            return
+        modules.globals.background_image_path = None
+        modules.globals.background_scene_path = path
+        self.lbl_background_path.setText(_("No image selected"))
+        self.lbl_background_path.setToolTip("")
+        self.lbl_background_scene_path.setText(os.path.basename(path))
+        self.lbl_background_scene_path.setToolTip(path)
+        save_switch_states()
+        update_status("3D background scene selected.")
 
     def _build_camera_card(self) -> QGroupBox:
         card = QGroupBox(_("Camera"))
@@ -1031,13 +1078,13 @@ class MainWindow(QMainWindow):
         )
         grid.addWidget(self.sw_async_swap, 3, 0, 1, 3)
 
-        # Optional AI cutout + depth-aware 2.5D background.
+        # Optional AI cutout + image-based or true-3D scene background.
         self.sw_3d_background = _Switch(
             _("Enable 3D background"),
             modules.globals.enable_3d_background,
-            _("Replace the webcam background using AI person segmentation, "
-              "estimated scene depth, head-tracked depth-aware parallax, and a "
-              "perspective warp. This is a 2.5D effect, not full 3D reconstruction.")
+            _("Replace the webcam background using AI person segmentation. "
+              "Choose a photo for depth-aware 2.5D, or a .glb/.gltf file for "
+              "a real 3D scene rendered with head-tracked camera movement.")
         )
         self.sw_3d_background.toggled.connect(
             lambda v: (
@@ -1047,7 +1094,7 @@ class MainWindow(QMainWindow):
         )
         grid.addWidget(self.sw_3d_background, 4, 0, 1, 3)
 
-        self.btn_background = QPushButton(_("Choose background image"))
+        self.btn_background = QPushButton(_("Choose background image (2.5D)"))
         self.btn_background.setObjectName("secondary")
         self.btn_background.clicked.connect(self._choose_background_image)
         grid.addWidget(self.btn_background, 5, 0)
@@ -1062,7 +1109,18 @@ class MainWindow(QMainWindow):
         self.lbl_background_path.setToolTip(current_bg or "")
         grid.addWidget(self.lbl_background_path, 5, 2)
 
-        grid.addWidget(QLabel(_("Parallax")), 6, 0)
+        self.btn_background_scene = QPushButton(_("Choose 3D scene (.glb/.gltf)"))
+        self.btn_background_scene.setObjectName("secondary")
+        self.btn_background_scene.clicked.connect(self._choose_background_scene)
+        grid.addWidget(self.btn_background_scene, 6, 0, 1, 2)
+        current_scene = modules.globals.background_scene_path
+        self.lbl_background_scene_path = QLabel(
+            os.path.basename(current_scene) if current_scene else _("No 3D scene selected")
+        )
+        self.lbl_background_scene_path.setToolTip(current_scene or "")
+        grid.addWidget(self.lbl_background_scene_path, 6, 2)
+
+        grid.addWidget(QLabel(_("Parallax")), 7, 0)
         self.s_bg_parallax = QSlider(Qt.Orientation.Horizontal)
         self.s_bg_parallax.setRange(0, 100)
         self.s_bg_parallax.setValue(int(modules.globals.background_parallax_strength * 100))
@@ -1070,9 +1128,9 @@ class MainWindow(QMainWindow):
             lambda v: (setattr(modules.globals, "background_parallax_strength", v / 100.0), save_switch_states())
         )
         self.s_bg_parallax.setToolTip(_("Strength of background movement as your head moves"))
-        grid.addWidget(self.s_bg_parallax, 6, 1, 1, 2)
+        grid.addWidget(self.s_bg_parallax, 7, 1, 1, 2)
 
-        grid.addWidget(QLabel(_("Room perspective")), 7, 0)
+        grid.addWidget(QLabel(_("Room perspective")), 8, 0)
         self.s_bg_perspective = QSlider(Qt.Orientation.Horizontal)
         self.s_bg_perspective.setRange(0, 100)
         self.s_bg_perspective.setValue(int(modules.globals.background_perspective_strength * 100))
@@ -1080,9 +1138,9 @@ class MainWindow(QMainWindow):
             lambda v: (setattr(modules.globals, "background_perspective_strength", v / 100.0), save_switch_states())
         )
         self.s_bg_perspective.setToolTip(_("Perspective distortion for a subtle 3D-room effect"))
-        grid.addWidget(self.s_bg_perspective, 7, 1, 1, 2)
+        grid.addWidget(self.s_bg_perspective, 8, 1, 1, 2)
 
-        grid.addWidget(QLabel(_("Background blur")), 8, 0)
+        grid.addWidget(QLabel(_("Background blur")), 9, 0)
         self.s_bg_blur = QSlider(Qt.Orientation.Horizontal)
         self.s_bg_blur.setRange(0, 100)
         self.s_bg_blur.setValue(int(modules.globals.background_blur * 100))
@@ -1090,16 +1148,16 @@ class MainWindow(QMainWindow):
             lambda v: (setattr(modules.globals, "background_blur", v / 100.0), save_switch_states())
         )
         self.s_bg_blur.setToolTip(_("Optional blur applied only to the replacement background"))
-        grid.addWidget(self.s_bg_blur, 8, 1, 1, 2)
+        grid.addWidget(self.s_bg_blur, 9, 1, 1, 2)
 
         self.btn_rtx4060_preset = QPushButton(_("Apply RTX 4060 balanced preset"))
         self.btn_rtx4060_preset.setObjectName("secondary")
         self.btn_rtx4060_preset.clicked.connect(self._apply_rtx4060_balanced_preset)
         self.btn_rtx4060_preset.setToolTip(_(
             "Use 720p capture, 320px face detection, async face swap, CUDA-first "
-            "segmentation (when available), and moderate 2.5D background effects."
+            "segmentation (when available), and moderate background movement."
         ))
-        grid.addWidget(self.btn_rtx4060_preset, 9, 0, 1, 3)
+        grid.addWidget(self.btn_rtx4060_preset, 10, 0, 1, 3)
 
         grid.setColumnStretch(1, 1)
         return card
@@ -1486,7 +1544,9 @@ class _ProcessingWorker(QThread):
         cached_many_faces = None
         det_interval = max(1, round(self._fps * 0.08))
         background_engine = None
+        background_scene_engine = None
         background_warning_shown = False
+        scene_warning_shown = False
 
         while not self._stop.is_set():
             try:
@@ -1500,33 +1560,64 @@ class _ProcessingWorker(QThread):
 
             # Background replacement runs before face detection/swap so the
             # existing face pipeline continues to operate on the foreground.
-            if (
-                modules.globals.enable_3d_background
-                and modules.globals.background_image_path
-            ):
-                if background_engine is None:
-                    from modules.background_3d import Background3DEngine
-                    background_engine = Background3DEngine()
-                    if not background_engine.available and not background_warning_shown:
-                        update_status(background_engine.error or "3D background is unavailable")
-                        background_warning_shown = True
-                    elif not background_engine.depth_available and not background_warning_shown:
-                        update_status(
-                            background_engine.depth_error
-                            or "Depth estimation is unavailable; using the 2.5D fallback."
+            if modules.globals.enable_3d_background:
+                scene_path = modules.globals.background_scene_path
+                image_path = modules.globals.background_image_path
+                if scene_path:
+                    if background_engine is not None:
+                        background_engine.close()
+                        background_engine = None
+                    if background_scene_engine is None:
+                        from modules.background_scene_3d import BackgroundScene3DEngine
+                        background_scene_engine = BackgroundScene3DEngine()
+                        if (
+                            not background_scene_engine.available
+                            and not scene_warning_shown
+                        ):
+                            update_status(
+                                background_scene_engine.error
+                                or "3D scene background is unavailable."
+                            )
+                            scene_warning_shown = True
+                    if background_scene_engine.available:
+                        temp_frame = background_scene_engine.process(
+                            temp_frame,
+                            scene_path,
+                            modules.globals.background_parallax_strength,
                         )
-                        background_warning_shown = True
-                if background_engine.available:
-                    temp_frame = background_engine.process(
-                        temp_frame,
-                        modules.globals.background_image_path,
-                        modules.globals.background_parallax_strength,
-                        modules.globals.background_perspective_strength,
-                        modules.globals.background_blur,
-                    )
-                    if background_engine.depth_error and not background_warning_shown:
-                        update_status(background_engine.depth_error)
-                        background_warning_shown = True
+                        if (
+                            background_scene_engine.error
+                            and not scene_warning_shown
+                        ):
+                            update_status(background_scene_engine.error)
+                            scene_warning_shown = True
+                elif image_path:
+                    if background_scene_engine is not None:
+                        background_scene_engine.close()
+                        background_scene_engine = None
+                    if background_engine is None:
+                        from modules.background_3d import Background3DEngine
+                        background_engine = Background3DEngine()
+                        if not background_engine.available and not background_warning_shown:
+                            update_status(background_engine.error or "3D background is unavailable")
+                            background_warning_shown = True
+                        elif not background_engine.depth_available and not background_warning_shown:
+                            update_status(
+                                background_engine.depth_error
+                                or "Depth estimation is unavailable; using the 2.5D fallback."
+                            )
+                            background_warning_shown = True
+                    if background_engine.available:
+                        temp_frame = background_engine.process(
+                            temp_frame,
+                            image_path,
+                            modules.globals.background_parallax_strength,
+                            modules.globals.background_perspective_strength,
+                            modules.globals.background_blur,
+                        )
+                        if background_engine.depth_error and not background_warning_shown:
+                            update_status(background_engine.depth_error)
+                            background_warning_shown = True
 
             if not modules.globals.map_faces:
                 source_path = modules.globals.source_path
@@ -1689,6 +1780,8 @@ class _ProcessingWorker(QThread):
             async_swapper.close()
         if background_engine is not None:
             background_engine.close()
+        if background_scene_engine is not None:
+            background_scene_engine.close()
 
 
 class WebcamPreviewWindow(QWidget):

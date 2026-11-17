@@ -74,6 +74,7 @@ class RuntimeConfig:
     dml_lock: threading.Lock = field(default_factory=threading.Lock)
     enable_3d_background: bool = True
     background_image_path: str | None = None
+    background_scene_path: str | None = None
     background_parallax_strength: float = 0.35
     background_perspective_strength: float = 0.25
     background_blur: float = 0.05
@@ -141,6 +142,7 @@ capture_resolution: tuple = runtime_config.capture_resolution
 dml_lock = runtime_config.dml_lock
 enable_3d_background: bool = runtime_config.enable_3d_background
 background_image_path: str | None = runtime_config.background_image_path
+background_scene_path: str | None = runtime_config.background_scene_path
 background_parallax_strength: float = runtime_config.background_parallax_strength
 background_perspective_strength: float = runtime_config.background_perspective_strength
 background_blur: float = runtime_config.background_blur

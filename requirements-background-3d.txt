@@ -2,3 +2,6 @@
 # The depth-estimation ONNX model downloads automatically on first use.
 # The main requirements install the platform-specific ONNX Runtime package.
 rembg>=2.0.87
+trimesh>=4.0
+pyrender>=0.1.45
+pyglet<2

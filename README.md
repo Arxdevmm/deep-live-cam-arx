@@ -440,27 +440,37 @@ Looking for a CLI mode? Using the -s/--source argument will make the run program
 
 ## Optional 3D Virtual Background (ArxDevMM)
 
-The live webcam preview includes an optional **3D Background** panel. It can
-replace the room behind the person using AI selfie segmentation, estimate depth
-in the selected background image, and apply head-tracked depth-aware parallax.
+The live webcam preview supports two background modes:
 
-Install the optional `rembg` dependency from the repository root:
+- **Photo (2.5D):** AI person segmentation, estimated relative depth, and
+  head-tracked parallax from a flat background image.
+- **3D scene:** loads a real `.glb` or `.gltf` scene and moves the render camera
+  with the tracked subject.
+
+Install the optional background dependencies from the repository root:
 
 ```bash
 pip install -r requirements-background-3d.txt
 ```
 
-The app downloads the Depth Anything V2 small ONNX model the first time this
-feature starts. The model is Apache-2.0 licensed and is cached under `models/`.
+On Ubuntu/Colab, install OpenGL runtime libraries before starting the app:
 
-Then open the app, select **Enable 3D background**, choose a background image,
-and adjust **Parallax**, **Room perspective**, and **Background blur**. This
-feature affects the live webcam preview; it does not currently alter offline
-image/video exports.
+```bash
+sudo apt-get install -y libgl1 libegl1 libglu1-mesa
+```
 
-**Rendering note:** this remains a 2.5D effect, not full 3D reconstruction.
-The person is AI-segmented and a monocular model estimates relative depth from
-the replacement image; that depth drives the parallax warp. It does not create
-a navigable 3D mesh or infer metric room depth. Performance depends on the
-CPU/GPU and webcam resolution. If depth estimation is unavailable, the app
-reports the issue and falls back to the perspective/parallax effect.
+In the Camera panel, enable **3D background** and select either **Choose
+background image (2.5D)** or **Choose 3D scene (.glb/.gltf)**. Selecting one
+clears the other. The 3D scene should be textured and include visible geometry;
+the renderer fits its camera to the scene bounds. The app downloads the
+Depth Anything V2 small ONNX model for photo mode on first use. Both the depth
+model and downloaded segmentation models are cached locally.
+
+The feature affects live webcam preview only; it does not alter offline
+image/video exports. The **Parallax** control moves the viewpoint for either
+mode. **Room perspective** and **Background blur** apply to photo mode.
+
+**Rendering note:** GLB/glTF mode renders supplied geometry in 3D, but it does
+not reconstruct a scene from a photograph or create unseen geometry. Performance
+depends on the OpenGL driver, GPU, scene complexity, and webcam resolution.
+Photo mode remains available as a lightweight fallback.
