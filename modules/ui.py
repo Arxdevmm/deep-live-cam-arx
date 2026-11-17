@@ -1031,12 +1031,13 @@ class MainWindow(QMainWindow):
         )
         grid.addWidget(self.sw_async_swap, 3, 0, 1, 3)
 
-        # Optional AI cutout + 2.5D perspective/parallax background.
+        # Optional AI cutout + depth-aware 2.5D background.
         self.sw_3d_background = _Switch(
             _("Enable 3D background"),
             modules.globals.enable_3d_background,
             _("Replace the webcam background using AI person segmentation, "
-              "head-tracked parallax and a perspective warp.")
+              "estimated scene depth, head-tracked depth-aware parallax, and a "
+              "perspective warp. This is a 2.5D effect, not full 3D reconstruction.")
         )
         self.sw_3d_background.toggled.connect(
             lambda v: (
@@ -1509,6 +1510,12 @@ class _ProcessingWorker(QThread):
                     if not background_engine.available and not background_warning_shown:
                         update_status(background_engine.error or "3D background is unavailable")
                         background_warning_shown = True
+                    elif not background_engine.depth_available and not background_warning_shown:
+                        update_status(
+                            background_engine.depth_error
+                            or "Depth estimation is unavailable; using the 2.5D fallback."
+                        )
+                        background_warning_shown = True
                 if background_engine.available:
                     temp_frame = background_engine.process(
                         temp_frame,
@@ -1517,6 +1524,9 @@ class _ProcessingWorker(QThread):
                         modules.globals.background_perspective_strength,
                         modules.globals.background_blur,
                     )
+                    if background_engine.depth_error and not background_warning_shown:
+                        update_status(background_engine.depth_error)
+                        background_warning_shown = True
 
             if not modules.globals.map_faces:
                 source_path = modules.globals.source_path

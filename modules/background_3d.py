@@ -1,8 +1,8 @@
-"""Optional 2.5D virtual background for the live webcam preview.
+"""Optional depth-aware 2.5D virtual background for the live webcam preview.
 
-Requires the optional ``mediapipe`` package.  Person segmentation is AI-based;
-the room effect uses a lightweight projective warp and a synthetic depth field
-so it runs without a heavyweight monocular-depth model.
+Requires the optional ``rembg`` package. Person segmentation is AI-based;
+the background uses Depth Anything V2 relative depth to add parallax to a
+single image. This is not full 3D scene reconstruction.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import numpy as np
 
 
 class Background3DEngine:
-    """AI foreground cutout + depth-inspired perspective/parallax background."""
+    """AI foreground cutout + depth-aware perspective/parallax background."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -27,6 +27,11 @@ class Background3DEngine:
         self._cached_mask: Optional[np.ndarray] = None
         self._frame_index = 0
         self._last_error: Optional[str] = None
+        self._depth_error: Optional[str] = None
+        self._depth_session = None
+        self._depth_input_name: Optional[str] = None
+        self._depth_map: Optional[np.ndarray] = None
+        self._depth_background_path: Optional[str] = None
         self._active_providers = []
         self._load_models()
 
@@ -46,6 +51,7 @@ class Background3DEngine:
                 self._session = new_session("u2netp")
                 self._active_providers = ["default"]
             self._remove = remove
+            self._load_depth_model()
         except Exception as exc:
             self._last_error = (
                 "3D Background needs the optional dependency 'rembg'. "
@@ -63,6 +69,14 @@ class Background3DEngine:
         return self._last_error
 
     @property
+    def depth_available(self) -> bool:
+        return self._depth_session is not None
+
+    @property
+    def depth_error(self) -> Optional[str]:
+        return self._depth_error
+
+    @property
     def active_providers(self) -> list[str]:
         """ONNX Runtime providers selected for segmentation, when available."""
         return list(self._active_providers)
@@ -70,6 +84,35 @@ class Background3DEngine:
     def close(self) -> None:
         self._session = None
         self._remove = None
+        self._depth_session = None
+
+    def _load_depth_model(self) -> None:
+        try:
+            import onnxruntime as ort
+            from modules.model_downloader import ensure_depth_model
+
+            model_path = ensure_depth_model()
+            if model_path is None:
+                raise RuntimeError("Could not download or verify the depth model.")
+
+            available = set(ort.get_available_providers())
+            providers = [
+                provider
+                for provider in ("CUDAExecutionProvider", "CoreMLExecutionProvider",
+                                 "DmlExecutionProvider", "CPUExecutionProvider")
+                if provider in available
+            ]
+            self._depth_session = ort.InferenceSession(
+                model_path,
+                providers=providers,
+            )
+            self._depth_input_name = self._depth_session.get_inputs()[0].name
+        except Exception as exc:
+            self._depth_error = (
+                "Depth estimation is unavailable; using the perspective/parallax "
+                f"fallback. Details: {exc}"
+            )
+            print("[3D Background] " + self._depth_error, flush=True)
 
     def _get_background(self, path: str, width: int, height: int) -> Optional[np.ndarray]:
         if not path or not os.path.isfile(path):
@@ -81,6 +124,8 @@ class Background3DEngine:
                 return None
             self._background = image
             self._background_path = path
+            self._depth_map = None
+            self._depth_background_path = None
         bg = self._background
         h, w = bg.shape[:2]
         scale = max(width / w, height / h)
@@ -126,6 +171,79 @@ class Background3DEngine:
             borderMode=cv2.BORDER_REFLECT
         )
 
+    @staticmethod
+    def _normalize_depth(depth: np.ndarray) -> np.ndarray:
+        depth = np.asarray(depth, dtype=np.float32)
+        finite = np.isfinite(depth)
+        if not np.any(finite):
+            return np.zeros(depth.shape, dtype=np.float32)
+        low, high = np.percentile(depth[finite], (2, 98))
+        if high <= low:
+            return np.full(depth.shape, 0.5, dtype=np.float32)
+        depth = np.where(finite, depth, low)
+        return np.clip((depth - low) / (high - low), 0.0, 1.0)
+
+    def _estimate_background_depth(self, background: np.ndarray) -> Optional[np.ndarray]:
+        if not self.depth_available or self._depth_input_name is None:
+            return None
+        try:
+            h, w = background.shape[:2]
+            scale = min(518.0 / max(h, w), 1.0)
+            input_w = max(14, int(round(w * scale / 14.0)) * 14)
+            input_h = max(14, int(round(h * scale / 14.0)) * 14)
+            input_w = min(input_w, 518)
+            input_h = min(input_h, 518)
+            rgb = cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+            resized = cv2.resize(rgb, (input_w, input_h), interpolation=cv2.INTER_AREA)
+            pixels = resized.astype(np.float32) / 255.0
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            tensor = ((pixels - mean) / std).transpose(2, 0, 1)[None, ...]
+            output = self._depth_session.run(
+                None, {self._depth_input_name: tensor}
+            )[0]
+            depth = np.squeeze(output)
+            if depth.ndim != 2 or depth.size == 0:
+                raise ValueError(f"Unexpected depth output shape: {output.shape}")
+            depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_CUBIC)
+            depth = self._normalize_depth(depth)
+            return cv2.GaussianBlur(depth, (0, 0), sigmaX=3.0, sigmaY=3.0)
+        except Exception as exc:
+            self._depth_error = f"Could not estimate background depth: {exc}"
+            print("[3D Background] " + self._depth_error, flush=True)
+            return None
+
+    @staticmethod
+    def _warp_with_depth(
+        background: np.ndarray,
+        depth: np.ndarray,
+        offset: np.ndarray,
+        strength: float,
+    ) -> np.ndarray:
+        h, w = background.shape[:2]
+        if strength <= 0.0:
+            return background
+        if depth.shape[:2] != (h, w):
+            depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_LINEAR)
+
+        # Depth Anything predicts relative inverse depth: distant image regions
+        # move more than nearby regions for a given tracked viewpoint shift.
+        depth_weight = 0.25 + 0.75 * (1.0 - np.clip(depth, 0.0, 1.0))
+        max_shift = float(np.clip(strength, 0.0, 1.0)) * 0.035
+        shift_x = np.clip(offset[0], -1.0, 1.0) * max_shift * w * depth_weight
+        shift_y = np.clip(offset[1], -1.0, 1.0) * max_shift * h * depth_weight
+        grid_x, grid_y = np.meshgrid(
+            np.arange(w, dtype=np.float32),
+            np.arange(h, dtype=np.float32),
+        )
+        return cv2.remap(
+            background,
+            grid_x - shift_x.astype(np.float32),
+            grid_y - shift_y.astype(np.float32),
+            interpolation=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_REFLECT,
+        )
+
     def process(self, frame: np.ndarray, background_path: str,
                 parallax_strength: float = 0.35,
                 perspective_strength: float = 0.25,
@@ -136,6 +254,10 @@ class Background3DEngine:
         background = self._get_background(background_path, w, h)
         if background is None:
             return frame
+
+        if background_path != self._depth_background_path:
+            self._depth_background_path = background_path
+            self._depth_map = self._estimate_background_depth(background)
 
         try:
             from PIL import Image
@@ -161,6 +283,10 @@ class Background3DEngine:
                 float(np.clip(parallax_strength, 0.0, 1.0)) * 0.10,
                 float(np.clip(perspective_strength, 0.0, 1.0)) * 0.035,
             )
+            if self._depth_map is not None:
+                moved_bg = self._warp_with_depth(
+                    moved_bg, self._depth_map, offset, parallax_strength
+                )
             if blur_strength > 0:
                 radius = max(1, int(round(float(blur_strength) * 15)))
                 ksize = radius * 2 + 1

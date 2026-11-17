@@ -441,9 +441,8 @@ Looking for a CLI mode? Using the -s/--source argument will make the run program
 ## Optional 3D Virtual Background (ArxDevMM)
 
 The live webcam preview includes an optional **3D Background** panel. It can
-replace the room behind the person using AI selfie segmentation, track the
-face position, and apply a perspective/parallax warp to a selected background
-image.
+replace the room behind the person using AI selfie segmentation, estimate depth
+in the selected background image, and apply head-tracked depth-aware parallax.
 
 Install the optional `rembg` dependency from the repository root:
 
@@ -451,13 +450,17 @@ Install the optional `rembg` dependency from the repository root:
 pip install -r requirements-background-3d.txt
 ```
 
+The app downloads the Depth Anything V2 small ONNX model the first time this
+feature starts. The model is Apache-2.0 licensed and is cached under `models/`.
+
 Then open the app, select **Enable 3D background**, choose a background image,
 and adjust **Parallax**, **Room perspective**, and **Background blur**. This
 feature affects the live webcam preview; it does not currently alter offline
 image/video exports.
 
-**Rendering note:** the current implementation is a lightweight 2.5D effect:
-the person cutout is AI-segmented, while the replacement scene uses a
-head-tracked projective warp and synthetic depth cue. It does not reconstruct a
-true navigable 3D mesh or infer metric room depth. Performance depends on the
-CPU/GPU and webcam resolution.
+**Rendering note:** this remains a 2.5D effect, not full 3D reconstruction.
+The person is AI-segmented and a monocular model estimates relative depth from
+the replacement image; that depth drives the parallax warp. It does not create
+a navigable 3D mesh or infer metric room depth. Performance depends on the
+CPU/GPU and webcam resolution. If depth estimation is unavailable, the app
+reports the issue and falls back to the perspective/parallax effect.

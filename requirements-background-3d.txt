@@ -1,3 +1,4 @@
-# Optional AI person segmentation for the live 3D background.
-# The main Windows CUDA requirements already install onnxruntime-gpu.
+# Optional AI person segmentation for the live depth-aware background.
+# The depth-estimation ONNX model downloads automatically on first use.
+# The main requirements install the platform-specific ONNX Runtime package.
 rembg>=2.0.87

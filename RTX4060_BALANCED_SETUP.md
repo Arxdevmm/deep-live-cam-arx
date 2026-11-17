@@ -23,6 +23,6 @@ Target hardware: NVIDIA GeForce RTX 4060 8 GB, Intel Core i9-14900K, 32 GB RAM.
 
 ## Important limitations
 
-The current effect is a lightweight 2.5D perspective/parallax approximation, not a true reconstructed 3D room mesh. Segmentation refreshes periodically and reuses the mask between inference frames to reduce load. Actual FPS depends on webcam, drivers, CUDA/cuDNN compatibility, and which other face processors are enabled. The UI preset cannot guarantee a particular frame rate.
+The effect is depth-aware 2.5D, not a true reconstructed 3D room mesh. Depth Anything V2 estimates relative depth from the selected background image once per image; the webcam segmentation mask refreshes periodically and is reused between inference frames to reduce load. Actual FPS depends on webcam, drivers, CUDA/cuDNN compatibility, and which other face processors are enabled. The UI preset cannot guarantee a particular frame rate.
 
-The project currently uses `rembg` with the lightweight `u2netp` model. Install the optional package with `pip install -r requirements-background-3d.txt`. If CUDA is unavailable to ONNX Runtime, segmentation falls back to CPU.
+The project uses `rembg` with the lightweight `u2netp` model for person segmentation. Install the optional package with `pip install -r requirements-background-3d.txt`. The depth model downloads automatically on first use and is cached under `models/background/`. If CUDA is unavailable to ONNX Runtime, segmentation and depth inference fall back to CPU.

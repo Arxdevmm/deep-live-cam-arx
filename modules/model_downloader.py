@@ -1,3 +1,4 @@
+import hashlib
 import os
 import ssl
 import threading
@@ -25,6 +26,14 @@ MODEL_SIZES: Dict[str, int] = {
     "buffalo_l/buffalo_l/genderage.onnx": 1322532,
     "buffalo_l/buffalo_l/w600k_r50.onnx": 174383860,
 }
+
+DEPTH_MODEL_NAME = "depth_anything_v2_small_int8.onnx"
+DEPTH_MODEL_URL = (
+    "https://huggingface.co/onnx-community/depth-anything-v2-small/"
+    "resolve/4472b7362082ad9968fee890ca0f1e5aca36b93d/onnx/model_int8.onnx"
+)
+DEPTH_MODEL_SIZE = 27258801
+DEPTH_MODEL_SHA256 = "01aa7a23de3f4a0ee1a2bb9997e6918104c85a9f95dea46d27b9b3fb0c6b9001"
 
 _LOCKS: Dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
@@ -180,3 +189,40 @@ def ensure_insightface_pack(name: str = "buffalo_l") -> bool:
     if not ok:
         print(f"[DLC.MODELS] Could not pre-fill '{name}'; insightface will retry.")
     return ok
+
+
+def ensure_depth_model() -> Optional[str]:
+    """Download and verify the optional Depth Anything V2 ONNX model."""
+    target = os.path.join(MODELS_DIR, "background", DEPTH_MODEL_NAME)
+    with _lock_for(target):
+        if os.path.isfile(target):
+            try:
+                if (
+                    os.path.getsize(target) == DEPTH_MODEL_SIZE
+                    and _sha256_file(target) == DEPTH_MODEL_SHA256
+                ):
+                    return target
+            except OSError as error:
+                print(f"[DLC.MODELS] Could not verify depth model: {error}")
+
+        print("[DLC.MODELS] Downloading depth-estimation model...")
+        if not _download(DEPTH_MODEL_NAME, DEPTH_MODEL_URL, target, DEPTH_MODEL_SIZE):
+            return None
+
+        try:
+            if _sha256_file(target) != DEPTH_MODEL_SHA256:
+                os.remove(target)
+                print("[DLC.MODELS] Depth model checksum did not match; discarded.")
+                return None
+        except OSError as error:
+            print(f"[DLC.MODELS] Could not verify depth model: {error}")
+            return None
+        return target
+
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
