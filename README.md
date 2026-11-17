@@ -451,9 +451,13 @@ Install the optional background dependencies from the repository root:
 
 ```bash
 pip install -r requirements-background-3d.txt
+python -m pip install --no-deps --force-reinstall PyOpenGL==3.1.10
 ```
 
-On Ubuntu/Colab, install OpenGL runtime libraries before starting the app:
+The second command is required because `pyrender` pins an older PyOpenGL that
+can fail on Python 3.12 when loading textures in GLB scenes. Restart the app
+after upgrading. On Ubuntu/Colab, install OpenGL runtime libraries before
+starting the app:
 
 ```bash
 sudo apt-get install -y libgl1 libegl1 libglu1-mesa

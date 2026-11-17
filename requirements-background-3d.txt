@@ -1,6 +1,7 @@
 # Optional AI person segmentation for the live depth-aware background.
 # The depth-estimation ONNX model downloads automatically on first use.
 # The main requirements install the platform-specific ONNX Runtime package.
+# After installing this file, upgrade PyOpenGL to 3.1.10 as documented in README.
 rembg>=2.0.87
 trimesh>=4.0
 pyrender>=0.1.45

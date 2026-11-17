@@ -34,6 +34,19 @@ class BackgroundScene3DEngine:
         try:
             if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
                 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
+            import OpenGL
+            pyopengl_version = tuple(
+                int(part) for part in OpenGL.__version__.split(".")[:3]
+            )
+            if pyopengl_version < (3, 1, 10):
+                raise RuntimeError(
+                    "PyOpenGL 3.1.10 or newer is required for textured GLB "
+                    "scenes. After installing optional background dependencies, "
+                    "run `python -m pip install --no-deps --force-reinstall "
+                    "PyOpenGL==3.1.10`, then restart the app/runtime."
+                )
+            import pyrender
+            import trimesh
             from rembg import new_session, remove
 
             try:
@@ -50,9 +63,6 @@ class BackgroundScene3DEngine:
             except Exception:
                 self._session = new_session("u2netp")
             self._remove = remove
-            import pyrender
-            import trimesh
-
             self._pyrender = pyrender
             self._trimesh = trimesh
         except Exception as exc:
@@ -256,5 +266,7 @@ class BackgroundScene3DEngine:
             ).astype(np.uint8)
         except Exception as exc:
             self._last_error = f"3D background rendering failed: {exc}"
-            print("[3D Background] " + self._last_error, flush=True)
+            if self._last_error != getattr(self, "_reported_error", None):
+                print("[3D Background] " + self._last_error, flush=True)
+                self._reported_error = self._last_error
             return frame
