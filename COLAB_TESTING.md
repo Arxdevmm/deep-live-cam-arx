@@ -46,3 +46,13 @@ print(modules.model_downloader.ensure_model("inswapper_128_fp16.onnx"))
 
 Model downloads can consume several hundred megabytes and should only be run when
 you are ready to test model loading.
+
+## 5. Optional combined face-swap and background test
+
+The notebook also includes an offline single-image test for the 2.5D background
+and face-swap pipeline. Install `rembg` when prompted, then upload a source face,
+a target portrait, and a replacement background in the following cells. The
+background is replaced before the face swap, matching the live preview order.
+The first run downloads segmentation, depth-estimation, and face-swap models.
+This tests image processing only; Colab does not run the webcam UI or GLB/glTF
+scene renderer.
