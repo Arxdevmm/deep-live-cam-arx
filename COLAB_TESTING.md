@@ -49,10 +49,26 @@ you are ready to test model loading.
 
 ## 5. Optional combined face-swap and background test
 
-The notebook also includes an offline single-image test for the 2.5D background
-and face-swap pipeline. Install `rembg` when prompted, then upload a source face,
-a target portrait, and a replacement background in the following cells. The
-background is replaced before the face swap, matching the live preview order.
-The first run downloads segmentation, depth-estimation, and face-swap models.
-This tests image processing only; Colab does not run the webcam UI or GLB/glTF
-scene renderer.
+Install the optional segmentation dependency:
+
+```python
+%pip install "rembg>=2.0.87"
+```
+
+Upload three images in Colab and run the script, replacing the paths with the
+uploaded file paths:
+
+```python
+!python scripts/colab_background_faceswap.py \
+  --source /content/source_face.jpg \
+  --target /content/target_portrait.jpg \
+  --background /content/replacement_background.jpg \
+  --output /content/faceswap_with_background.png \
+  --overwrite
+```
+
+The script replaces the target background before face-swapping, matching the
+live preview order. The first run downloads segmentation, depth-estimation, and
+face-swap models. It tests image processing only; Colab does not run the webcam
+UI or GLB/glTF scene renderer. The same script is available as an optional final
+section in the Colab notebook.
