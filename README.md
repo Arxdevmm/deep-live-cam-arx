@@ -143,7 +143,7 @@ Double-click `install.bat` on Windows. It will:
 
 You can also double-click `launch.bat` to start the app after installation. Required ONNX and InsightFace models are downloaded automatically with resumable downloads when first used.
 
-To test the Python code in Google Colab before Windows testing, follow [COLAB_TESTING.md](COLAB_TESTING.md).
+To test the Python code in Google Colab before Windows testing, open [Deep-Live-Cam-Colab-Test.ipynb](Deep-Live-Cam-Colab-Test.ipynb) or follow [COLAB_TESTING.md](COLAB_TESTING.md).
 
 **Please be aware that the installation requires technical skills and is not for beginners. Consider downloading the quickstart version.**
 

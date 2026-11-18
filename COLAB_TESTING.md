@@ -3,6 +3,9 @@
 Colab can validate the Python application and test suite. It cannot run the Windows
 `.bat` installer or create Windows shortcuts.
 
+Use the ready-made notebook
+[Deep-Live-Cam-Colab-Test.ipynb](Deep-Live-Cam-Colab-Test.ipynb).
+
 ## 1. Clone and enter the repository
 
 ```python
