@@ -130,6 +130,19 @@ Perfect if you want the fastest setup with **zero manual installation**, pre-con
 
 ## Installation (Manual)
 
+### Windows one-click setup
+
+Double-click `install.bat` on Windows. It will:
+
+- install Git and Python 3.14 through `winget` if needed;
+- clone this repository to `%LOCALAPPDATA%\Deep-Live-Cam-Arx` when run from a downloaded copy of `install.bat`;
+- create a `venv`;
+- install `requirements.txt`;
+- install FFmpeg and the Visual C++ runtime when available;
+- create a desktop and Start Menu shortcut.
+
+You can also double-click `launch.bat` to start the app after installation. Required ONNX and InsightFace models are downloaded automatically with resumable downloads when first used.
+
 **Please be aware that the installation requires technical skills and is not for beginners. Consider downloading the quickstart version.**
 
 <details>

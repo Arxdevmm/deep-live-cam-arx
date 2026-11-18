@@ -29,3 +29,5 @@ switch_states.json
 install.bat
 /.claude
 *.bat
+!install.bat
+!launch.bat
